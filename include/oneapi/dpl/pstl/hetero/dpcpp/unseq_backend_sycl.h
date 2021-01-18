@@ -123,11 +123,11 @@ calc_shift(const _NDItemId __item_id, const _GlobalIdx __global_idx, _SizeNIter&
 
     auto __start = __n_iter * __global_idx;
     auto __global_shift = __global_idx + __n_iter * __global_range_size;
-    if (__n_iter > 0 && __global_shift > __n)
+    if (__n_iter > 0 && __global_shift > (_GlobalIdx)__n)
     {
         __start += __n % __global_range_size - __global_idx;
     }
-    else if (__global_shift < __n)
+    else if (__global_shift < (_GlobalIdx)__n)
     {
         __n_iter++;
     }
@@ -152,7 +152,7 @@ struct transform_init
         auto __shifted_global_idx = __global_idx + __start;
 
         typename __accessor_traits<_AccLocal>::value_type __res;
-        if (__global_idx < __n)
+        if (__global_idx < (_GlobalIdx)__n)
         {
             __res = __unary_op(__shifted_global_idx, __acc...);
         }
@@ -161,7 +161,7 @@ struct transform_init
         {
             __res = __binary_op(__res, __unary_op(__shifted_global_idx + __i, __acc...));
         }
-        if (__global_idx < __n)
+        if (__global_idx < (_GlobalIdx)__n)
         {
             __local_mem[__local_idx] = __res;
         }
@@ -295,7 +295,7 @@ struct __mask_assigner
 {
     template <typename _Acc, typename _OutAcc, typename _OutIdx, typename _InAcc, typename _InIdx>
     void
-    operator()(_Acc& __acc, _OutAcc& __out_acc, const _OutIdx __out_idx, const _InAcc& __in_acc,
+    operator()(_Acc& __acc, _OutAcc&, const _OutIdx __out_idx, const _InAcc& __in_acc,
                const _InIdx __in_idx) const
     {
         using ::std::get;
@@ -325,7 +325,7 @@ struct __scan_no_assign
 {
     template <typename _OutAcc, typename _OutIdx, typename _InAcc, typename _InIdx>
     void
-    operator()(_OutAcc& __out_acc, const _OutIdx __out_idx, const _InAcc& __in_acc, const _InIdx __in_idx) const
+    operator()(_OutAcc&, const _OutIdx, const _InAcc&, const _InIdx) const
     {
     }
 };
@@ -472,11 +472,11 @@ struct __global_scan_functor
     template <typename _Item, typename _OutAcc, typename _InAcc, typename _WgSumsAcc, typename _Size,
               typename _SizePerWg>
     void
-    operator()(_Item __item, _OutAcc& __out_acc, const _InAcc& _in_acc, const _WgSumsAcc& __wg_sums_acc, _Size __n,
+    operator()(_Item __item, _OutAcc& __out_acc, const _InAcc&, const _WgSumsAcc& __wg_sums_acc, _Size __n,
                _SizePerWg __size_per_wg) const
     {
         constexpr auto __shift = _Inclusive{} ? 0 : 1;
-        auto __item_idx = __item.get_linear_id();
+        _Size __item_idx = __item.get_linear_id();
         // skip the first group scanned locally
         if (__item_idx >= __size_per_wg && __item_idx < __n)
         {
@@ -522,9 +522,9 @@ struct __scan
                 __use_init(__init, __out_acc[__global_id]);
         });
 
-        auto __adjusted_global_id = __local_id + __size_per_wg * __group_id;
+        _Size __adjusted_global_id = __local_id + __size_per_wg * __group_id;
         auto __adder = __local_acc[0];
-        for (auto __iter = 0; __iter < __iters_per_wg; ++__iter, __adjusted_global_id += __wgroup_size)
+        for (_ItersPerWG __iter = 0; __iter < __iters_per_wg; ++__iter, __adjusted_global_id += __wgroup_size)
         {
             if (__adjusted_global_id < __n)
             {
@@ -539,7 +539,7 @@ struct __scan
                 __use_init(__init, __local_acc[__global_id], __bin_op);
 
             // 1. reduce
-            auto __k = 1;
+            _WGSize __k = 1;
             do
             {
                 __item.barrier(sycl::access::fence_space::local_space);
@@ -604,7 +604,7 @@ struct reduce<_ExecutionPolicy, ::std::plus<_Tp>, __enable_if_arithmetic<_Tp>>
     operator()(_NDItem __item, _GlobalIdx __global_id, _GlobalSize __n, _LocalAcc __local_mem) const
     {
         auto __local_id = __item.get_local_id(0);
-        if (__global_id >= __n)
+        if (__global_id >= (_GlobalIdx)__n)
         {
             // Fill the rest of local buffer with 0s so each of inclusive_scan method could correctly work
             // for each work-item in sub-group
