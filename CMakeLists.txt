@@ -113,9 +113,7 @@ if (ONEDPL_USE_PARALLEL_POLICIES)
             endif()
 
             # settings for the specific compilation type
-            if (NOT ONEDPL_USE_AOT_COMPILATION)
-                message(STATUS "Use the ahead of time compilation. No additional parameters needed")
-            else()
+            if (ONEDPL_USE_AOT_COMPILATION)
                 if (NOT ONEDPL_AOT_ARCH)
                     set(ONEDPL_AOT_ARCH "*")
                     message(STATUS "Ahead of time compilation for all available architectures")
